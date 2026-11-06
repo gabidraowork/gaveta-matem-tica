@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Simulador · Solução S1 + S2</title>
+<style>
+  /* ===== Paleta sóbria: S1 em azul, S2 em âmbar, meta em verde-escuro ===== */
+  :root {
+    --fundo: #f4f5f7;
+    --cartao: #ffffff;
+    --borda: #dfe3e8;
+    --texto: #1f2933;
+    --suave: #66717d;
+    --s1: #2f6db5;
+    --s2: #c9821b;
+    --meta: #2e7d4f;
+    --alerta: #b4462f;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--fundo); color: var(--texto);
+    font-family: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif; }
+  body { padding: 12px; }
+  .app { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+  .cartao { background: var(--cartao); border: 1px solid var(--borda); border-radius: 12px; padding: 14px 16px; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* Enunciado */
+  .enunciado p { margin: 0; font-size: 14px; line-height: 1.5; }
+  .alternativas { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 6px; font-size: 14px; color: var(--suave); }
+
+  /* Grade: desenho à esquerda, painel à direita */
+  .grade { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: start; }
+  @media (max-width: 640px) { .grade { grid-template-columns: minmax(0, 1fr); } }
+  @media (max-width: 420px) { .leituras { grid-template-columns: 1fr; } }
+  .cena svg { width: 100%; max-width: 460px; height: auto; display: block; margin: 0 auto; touch-action: none; user-select: none; }
+  .dica { text-align: center; font-size: 13px; color: var(--suave); margin: 6px 0 0; }
+
+  /* Painel */
+  .painel { display: flex; flex-direction: column; gap: 14px; }
+  .rotulo { font-size: 13px; color: var(--suave); }
+  .pct { font-size: 34px; font-weight: 700; color: var(--s1); line-height: 1.1; }
+  .pct small { font-size: 15px; font-weight: 600; color: var(--suave); margin-left: 6px; }
+
+  /* Régua de 99,80% a 100%, com a meta no meio */
+  .regua { position: relative; height: 12px; border-radius: 6px; background: #e8ebef; margin-top: 10px; }
+  .regua .preench { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 6px; background: var(--s1); }
+  .regua .meta { position: absolute; left: calc(50% - 1px); top: -4px; width: 2px; height: 20px; background: var(--meta); }
+  .regua-rot { display: flex; justify-content: space-between; font-size: 11px; color: var(--suave); margin-top: 6px; }
+  .regua-rot b { color: var(--meta); font-weight: 600; }
+
+  /* Leituras em litros: lista simples, sem caixas */
+  .leituras { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; font-size: 13px;
+    border-top: 1px solid var(--borda); border-bottom: 1px solid var(--borda); padding: 10px 0; }
+  .leituras div { display: flex; justify-content: space-between; gap: 8px; }
+  .leituras span { color: var(--suave); }
+  .leituras b { font-weight: 600; }
+
+  /* Controle da retirada: − [campo] + e escolha do passo */
+  .controle { display: flex; align-items: center; gap: 8px; }
+  button { font: inherit; font-size: 13px; border: 1px solid var(--borda); background: #fff; color: var(--texto);
+    border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+  button:hover { background: #f0f2f5; }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--s1); outline-offset: 1px; }
+  .controle .mais-menos { width: 40px; height: 40px; font-size: 20px; padding: 0; }
+  .campo { flex: 1; min-width: 0; display: flex; align-items: center; border: 1px solid var(--borda); border-radius: 8px; padding: 0 10px; height: 40px; }
+  .campo input { flex: 1; min-width: 0; border: 0; font: inherit; font-size: 17px; text-align: right; outline: none; background: transparent; }
+  .campo span { color: var(--suave); margin-left: 6px; }
+  .passos { display: flex; align-items: center; gap: 4px; margin-top: 8px; font-size: 12px; color: var(--suave); flex-wrap: wrap; }
+  .passos button { padding: 3px 8px; font-size: 12px; border-radius: 999px; }
+  .passos button[aria-pressed="true"] { background: var(--texto); color: #fff; border-color: var(--texto); }
+  input[type=range] { width: 100%; accent-color: var(--s1); margin: 10px 0 0; }
+
+  /* Ações e resultado (fixo na tela, sem pop-up) */
+  .acoes { display: flex; gap: 8px; }
+  .primario { flex: 1; background: var(--texto); color: #fff; border-color: var(--texto); font-weight: 600; padding: 10px 14px; }
+  .primario:hover { background: #33404d; }
+  .resultado { border-radius: 8px; padding: 10px 12px; font-size: 14px; background: #f6f7f9; color: var(--suave); }
+  .resultado.acima { background: #eef4fb; color: #1f4f86; }
+  .resultado.abaixo { background: #fbf0ed; color: var(--alerta); }
+  .resultado.igual { background: #edf7f0; color: var(--meta); }
+
+  /* Histórico de tentativas */
+  .hist-topo { display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 600; }
+  .link { border: 0; background: none; padding: 0; color: var(--suave); text-decoration: underline; font-size: 12px; }
+  .link:hover { background: none; color: var(--texto); }
+  ol { list-style: none; margin: 6px 0 0; padding: 0; font-size: 13px; }
+  ol li { display: grid; grid-template-columns: 28px 1fr 1fr auto; gap: 8px; padding: 4px 0; border-bottom: 1px solid #eef0f2; }
+  ol li .n { color: var(--suave); }
+  .tag { font-weight: 600; }
+  .tag.acima { color: #1f4f86; } .tag.abaixo { color: var(--alerta); } .tag.igual { color: var(--meta); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ===== Enunciado da questão (texto original + alternativas) ===== -->
+  <section class="cartao enunciado">
+    <p>Em um laboratório, um recipiente contém 10 litros de uma solução composta apenas pelas substâncias S1 e S2.
+      Dessa solução, 99,95% é de S1. Uma quantidade de S1 será retirada dessa solução, mantendo a quantidade inicial
+      de S2 de modo que 99,90% da nova solução seja de S1. Qual é a quantidade de S1, em litros, que será retirada?</p>
+    <div class="alternativas num">
+      <span>(A) 0,0050</span><span>(B) 0,0100</span><span>(C) 0,5000</span><span>(D) 4,9775</span><span>(E) 5,0000</span>
+    </div>
+  </section>
+
+  <div class="grade">
+
+    <!-- ===== Desenho: lupa, béquer e seringa em SVG ===== -->
+    <section class="cartao cena">
+      <svg id="cena" viewBox="0 0 540 462" role="img" aria-label="Béquer com a solução e seringa de retirada de S1">
+        <defs>
+          <clipPath id="clipLupa"><circle cx="80" cy="190" r="58" /></clipPath>
+          <clipPath id="clipBequer"><rect x="150" y="70" width="200" height="354" /></clipPath>
+        </defs>
+
+        <!-- Mangueira que liga o béquer à ponta da seringa -->
+        <path d="M 320 405 L 320 28 Q 320 18 330 18 L 448 18 Q 458 18 458 28 L 458 52"
+              fill="none" stroke="#b3bcc6" stroke-width="5" stroke-linecap="round" />
+
+        <!-- Béquer: líquido (S1 embaixo, S2 em cima) em escala real -->
+        <g clip-path="url(#clipBequer)">
+          <rect id="liqS1" x="152" y="0" width="196" height="0" fill="var(--s1)" opacity="0.85" />
+          <rect id="liqS2" x="152" y="0" width="196" height="0" fill="var(--s2)" />
+        </g>
+        <path d="M 150 62 L 150 420 Q 150 426 156 426 L 344 426 Q 350 426 350 420 L 350 62"
+              fill="none" stroke="#4a5562" stroke-width="3" />
+        <g id="gradBequer"></g>
+        <text x="250" y="450" text-anchor="middle" font-size="16" fill="#66717d">Béquer</text>
+
+        <!-- Lupa: visão ampliada da superfície do líquido (a camada de S2 é fina demais no béquer) -->
+        <line id="ligaLupa" x1="138" y1="190" x2="152" y2="190" stroke="#8894a1" stroke-dasharray="3 3" />
+        <g clip-path="url(#clipLupa)">
+          <rect x="20" y="130" width="120" height="120" fill="#f8fafc" />
+          <rect id="lupaS2" x="20" y="0" width="120" height="0" fill="var(--s2)" />
+          <rect id="lupaS1" x="20" y="0" width="120" height="0" fill="var(--s1)" opacity="0.85" />
+          <text id="lupaRotS2" x="80" y="0" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">S2</text>
+          <text id="lupaRotS1" x="80" y="0" text-anchor="middle" font-size="13" font-weight="700" fill="#fff">S1</text>
+        </g>
+        <circle cx="80" cy="190" r="58" fill="none" stroke="#4a5562" stroke-width="3" />
+        <line x1="121" y1="231" x2="140" y2="252" stroke="#4a5562" stroke-width="6" stroke-linecap="round" />
+        <text x="80" y="120" text-anchor="middle" font-size="16" fill="#66717d">Lupa</text>
+
+        <!-- Seringa: corpo graduado de 0 a 10 L, êmbolo arrastável -->
+        <rect x="452" y="52" width="12" height="18" fill="#c3cad3" stroke="#4a5562" stroke-width="1.5" />
+        <rect id="seringaS1" x="432" y="70" width="52" height="0" fill="var(--s1)" opacity="0.85" />
+        <rect x="430" y="70" width="56" height="160" fill="none" stroke="#4a5562" stroke-width="3" rx="3" />
+        <g id="gradSeringa"></g>
+        <g id="embolo" style="cursor: ns-resize">
+          <rect id="emboloCabeca" x="432" y="70" width="52" height="8" fill="#4a5562" />
+          <rect id="emboloHaste" x="452" y="78" width="12" height="172" fill="#8894a1" />
+          <rect id="emboloPega" x="414" y="250" width="88" height="14" rx="4" fill="#4a5562" />
+          <!-- área invisível maior para facilitar o toque -->
+          <rect id="emboloAlvo" x="400" y="60" width="116" height="220" fill="transparent" />
+        </g>
+        <text x="458" y="450" text-anchor="middle" font-size="16" fill="#66717d">Seringa</text>
+      </svg>
+      <p class="dica">Puxe o êmbolo para retirar S1 do béquer.</p>
+    </section>
+
+    <!-- ===== Painel: porcentagem, leituras, controle e verificação ===== -->
+    <section class="cartao painel">
+
+      <!-- Porcentagem atual de S1 (6 casas para ver mudanças pequenas) -->
+      <div>
+        <div class="rotulo">S1 na solução</div>
+        <div class="pct num" id="pctS1">—</div>
+        <div class="regua" aria-hidden="true"><div class="preench" id="regPreench"></div><div class="meta"></div></div>
+        <div class="regua-rot"><span>99,80%</span><b>meta 99,90%</b><span>100%</span></div>
+      </div>
+
+      <!-- Leituras em litros -->
+      <div class="leituras num">
+        <div><span>S1 no béquer</span><b id="vS1">—</b></div>
+        <div><span>S2 no béquer</span><b id="vS2">—</b></div>
+        <div><span>Total</span><b id="vTot">—</b></div>
+        <div><span>S2 na solução</span><b id="pctS2">—</b></div>
+      </div>
+
+      <!-- Volume retirado: − / campo / +, passo do ajuste e deslizante -->
+      <div>
+        <div class="rotulo" style="margin-bottom:6px">S1 retirado com a seringa</div>
+        <div class="controle">
+          <button class="mais-menos" id="btnMenos" aria-label="Devolver S1">−</button>
+          <label class="campo"><input id="campo" class="num" inputmode="decimal" value="0,0000" aria-label="Volume retirado em litros" /><span>L</span></label>
+          <button class="mais-menos" id="btnMais" aria-label="Retirar S1">+</button>
+        </div>
+        <div class="passos" id="passos">
+          <span>Passo:</span>
+          <button data-p="10000">1 L</button><button data-p="1000">0,1</button><button data-p="100" aria-pressed="true">0,01</button>
+          <button data-p="10">0,001</button><button data-p="1">0,0001</button>
+        </div>
+        <input type="range" id="slider" min="0" max="99900" step="1" value="0" aria-label="Volume retirado" />
+      </div>
+
+      <!-- Verificação: feedback só acima / abaixo / igual -->
+      <div class="acoes">
+        <button class="primario" id="btnRegistrar">Verificar</button>
+        <button id="btnRecomecar">Recomeçar</button>
+      </div>
+      <div class="resultado" id="resultado" aria-live="polite">Escolha um volume e clique em Verificar.</div>
+
+      <!-- Tentativas registradas -->
+      <div>
+        <div class="hist-topo"><span>Tentativas</span><button class="link" id="btnLimpar" hidden>limpar</button></div>
+        <ol id="lista"><li style="display:block;color:var(--suave);border:0">Nenhuma ainda.</li></ol>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+(function () {
+  // ===== Dados do problema, em unidades de 0,0001 L (números inteiros, sem erro de arredondamento) =====
+  var UNIDADE = 10000;            // 1 L = 10.000 unidades
+  var TOTAL_INICIAL = 10 * UNIDADE; // 10 L de solução
+  var S2 = 50;                    // 0,05% de 10 L (fica constante)
+  var S1_INICIAL = TOTAL_INICIAL - S2;
+  var RETIRADA_MAX = 99900;       // limite da seringa: 9,99 L
+  var META_MIL = 999;             // meta: 99,90% = 999 por mil
+
+  var retirado = 0;               // volume de S1 retirado (unidades)
+  var passo = 100;                // passo dos botões − / + (0,01 L)
+  var tentativas = [];
+
+  var $ = function (id) { return document.getElementById(id); };
+  var fmt = function (v, casas) {
+    return v.toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas });
+  };
+  var litros = function (u) { return fmt(u / UNIDADE, 4) + ' L'; };
+
+  // Compara a % atual com a meta usando apenas inteiros: >0 acima, <0 abaixo, 0 igual
+  function compararComMeta(r) {
+    var s1 = S1_INICIAL - r, total = TOTAL_INICIAL - r;
+    return s1 * 1000 - META_MIL * total;
+  }
+
+  // ===== Escalas do desenho =====
+  var BEQ_BASE = 424, BEQ_PX_POR_L = 350 / 12; // béquer de 12 L em 350 px (escala real)
+  var SER_TOPO = 70, SER_PX_POR_L = 16;         // seringa de 10 L em 160 px
+  var LUPA_CY = 190, LUPA_PX_POR_L = 5500;       // ampliação da lupa (≈ 190× a do béquer)
+
+  // Marcas de graduação do béquer e da seringa (números a cada 2 L)
+  (function desenharGraduacoes() {
+    var ns = 'http://www.w3.org/2000/svg', g = $('gradBequer'), gs = $('gradSeringa');
+    function el(tag, attrs, pai, texto) {
+      var e = document.createElementNS(ns, tag);
+      for (var k in attrs) e.setAttribute(k, attrs[k]);
+      if (texto) e.textContent = texto;
+      pai.appendChild(e); return e;
+    }
+    for (var l = 2; l <= 12; l += 2) {
+      var y = BEQ_BASE - l * BEQ_PX_POR_L;
+      el('line', { x1: 350, y1: y, x2: 336, y2: y, stroke: '#4a5562', 'stroke-width': 1.5 }, g);
+      el('text', { x: 356, y: y + 4, 'font-size': 14, fill: '#66717d' }, g, l + ' L');
+    }
+    for (var s = 0; s <= 10; s += 2) {
+      var ys = SER_TOPO + s * SER_PX_POR_L;
+      el('line', { x1: 486, y1: ys, x2: 474, y2: ys, stroke: '#4a5562', 'stroke-width': 1.2 }, gs);
+      el('text', { x: 492, y: ys + 4, 'font-size': 14, fill: '#66717d' }, gs, s + ' L');
+    }
+  })();
+
+  // ===== Atualiza desenho e leituras a cada movimento =====
+  function render() {
+    var s1 = S1_INICIAL - retirado, total = TOTAL_INICIAL - retirado;
+    var pct = (s1 / total) * 100;
+
+    // Béquer em escala real: S1 embaixo, S2 por cima
+    var hS1 = (s1 / UNIDADE) * BEQ_PX_POR_L, hS2 = (S2 / UNIDADE) * BEQ_PX_POR_L;
+    var topoS1 = BEQ_BASE - hS1;
+    $('liqS1').setAttribute('y', topoS1); $('liqS1').setAttribute('height', hS1);
+    $('liqS2').setAttribute('y', topoS1 - hS2); $('liqS2').setAttribute('height', hS2);
+    $('ligaLupa').setAttribute('y2', topoS1);
+
+    // Lupa: centralizada na fronteira entre S1 e S2 (a camada de S2 não muda)
+    var hLupaS2 = (S2 / UNIDADE) * LUPA_PX_POR_L;
+    $('lupaS2').setAttribute('y', LUPA_CY - hLupaS2); $('lupaS2').setAttribute('height', hLupaS2);
+    $('lupaS1').setAttribute('y', LUPA_CY); $('lupaS1').setAttribute('height', 80);
+    $('lupaRotS2').setAttribute('y', LUPA_CY - hLupaS2 / 2 + 5);
+    $('lupaRotS1').setAttribute('y', LUPA_CY + 26);
+
+    // Seringa: S1 retirado ocupa o corpo, êmbolo acompanha
+    var hSer = (retirado / UNIDADE) * SER_PX_POR_L, yCab = SER_TOPO + hSer;
+    $('seringaS1').setAttribute('height', hSer);
+    $('emboloCabeca').setAttribute('y', yCab);
+    $('emboloHaste').setAttribute('y', yCab + 8);
+    $('emboloPega').setAttribute('y', yCab + 180);
+    $('emboloAlvo').setAttribute('y', yCab - 10);
+
+    // Leituras
+    $('pctS1').textContent = fmt(pct, 6) + '%';
+    $('pctS2').textContent = fmt(100 - pct, 4) + '%';
+    $('vS1').textContent = litros(s1);
+    $('vS2').textContent = litros(S2);
+    $('vTot').textContent = litros(total);
+
+    // Régua de 99,80% a 100%
+    var frac = Math.max(0, Math.min(1, (pct - 99.8) / 0.2));
+    $('regPreench').style.width = (frac * 100) + '%';
+
+    // Sincroniza controles
+    $('slider').value = retirado;
+    if (document.activeElement !== $('campo')) $('campo').value = fmt(retirado / UNIDADE, 4);
+  }
+
+  function definirRetirada(u) {
+    retirado = Math.max(0, Math.min(RETIRADA_MAX, Math.round(u)));
+    render();
+  }
+
+  // ===== Eventos dos controles =====
+  $('slider').addEventListener('input', function (e) { definirRetirada(Number(e.target.value)); });
+  $('btnMais').addEventListener('click', function () { definirRetirada(retirado + passo); });
+  $('btnMenos').addEventListener('click', function () { definirRetirada(retirado - passo); });
+
+  // Escolha do passo dos botões − / +
+  var botoesPasso = document.querySelectorAll('#passos button');
+  Array.prototype.forEach.call(botoesPasso, function (b) {
+    b.addEventListener('click', function () {
+      passo = Number(b.dataset.p);
+      Array.prototype.forEach.call(botoesPasso, function (o) { o.setAttribute('aria-pressed', o === b ? 'true' : 'false'); });
+    });
+  });
+
+  // Campo numérico: aceita vírgula (padrão brasileiro) ou ponto
+  function aplicarCampo() {
+    var txt = $('campo').value.trim().replace(/\s/g, '');
+    if (txt.indexOf(',') !== -1) txt = txt.replace(/\./g, '').replace(',', '.');
+    var v = parseFloat(txt);
+    if (!isNaN(v)) definirRetirada(v * UNIDADE);
+    $('campo').value = fmt(retirado / UNIDADE, 4);
+  }
+  $('campo').addEventListener('keydown', function (e) { if (e.key === 'Enter') { aplicarCampo(); $('campo').blur(); } });
+  $('campo').addEventListener('blur', aplicarCampo);
+
+  // Arrastar o êmbolo (mouse e toque): ajuste grosso, de 0,01 em 0,01 L
+  var svg = $('cena'), arrastando = false, deslocamento = 0;
+  function yNoSvg(ev) {
+    var pt = svg.createSVGPoint(); pt.x = ev.clientX; pt.y = ev.clientY;
+    return pt.matrixTransform(svg.getScreenCTM().inverse()).y;
+  }
+  $('embolo').addEventListener('pointerdown', function (ev) {
+    // guarda onde o êmbolo foi "pego" para ele não saltar ao começar o arraste
+    deslocamento = yNoSvg(ev) - (SER_TOPO + (retirado / UNIDADE) * SER_PX_POR_L);
+    arrastando = true; svg.setPointerCapture(ev.pointerId); ev.preventDefault();
+  });
+  svg.addEventListener('pointermove', function (ev) {
+    if (!arrastando) return;
+    var l = (yNoSvg(ev) - deslocamento - SER_TOPO) / SER_PX_POR_L;
+    definirRetirada(Math.round(l * 100) / 100 * UNIDADE);
+  });
+  ['pointerup', 'pointercancel'].forEach(function (t) { svg.addEventListener(t, function () { arrastando = false; }); });
+
+  // ===== Verificação: feedback apenas indicativo, registrado no histórico =====
+  var TEXTOS = {
+    acima: 'Acima da meta: ainda há mais de 99,90% de S1.',
+    abaixo: 'Abaixo da meta: S1 ficou com menos de 99,90%.',
+    igual: 'Igual à meta: a solução tem 99,90% de S1.'
+  };
+  var ROTULOS = { acima: 'acima', abaixo: 'abaixo', igual: 'igual' };
+  var TEXTO_INICIAL = 'Escolha um volume e clique em Verificar.';
+
+  $('btnRegistrar').addEventListener('click', function () {
+    var c = compararComMeta(retirado);
+    var situacao = c > 0 ? 'acima' : (c < 0 ? 'abaixo' : 'igual');
+    var pct = ((S1_INICIAL - retirado) / (TOTAL_INICIAL - retirado)) * 100;
+    tentativas.unshift({ n: tentativas.length + 1, r: retirado, pct: pct, s: situacao });
+
+    var box = $('resultado');
+    box.className = 'resultado ' + situacao;
+    box.textContent = litros(retirado) + ' retirados → ' + TEXTOS[situacao];
+    desenharLista();
+  });
+
+  function desenharLista() {
+    var lista = $('lista'); lista.innerHTML = '';
+    if (!tentativas.length) {
+      lista.innerHTML = '<li style="display:block;color:var(--suave);border:0">Nenhuma ainda.</li>';
+    }
+    tentativas.slice(0, 12).forEach(function (t) {
+      var li = document.createElement('li');
+      li.innerHTML = '<span class="n">' + t.n + '</span><span class="num">' + litros(t.r) + '</span><span class="num">' +
+        fmt(t.pct, 6) + '%</span><span class="tag ' + t.s + '">' + ROTULOS[t.s] + '</span>';
+      lista.appendChild(li);
+    });
+    $('btnLimpar').hidden = tentativas.length === 0;
+  }
+
+  $('btnLimpar').addEventListener('click', function () {
+    tentativas = []; desenharLista();
+    $('resultado').className = 'resultado';
+    $('resultado').textContent = TEXTO_INICIAL;
+  });
+  $('btnRecomecar').addEventListener('click', function () { definirRetirada(0); });
+
+  render();
+})();
+</script>
+</body>
+</html>
